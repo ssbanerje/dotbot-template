@@ -5,7 +5,7 @@
           NAME: John Doe
           EMAIL: jd@jd.com
           GITHUB: jd
-          SIGNING_KEY: ????
+          SIGNING_KEY: DEADBEEF
           SMTP_SERVER: smtp.gmail.com
           SMTP_PORT: 587
           SMTP_ENCRYPTION: tls
