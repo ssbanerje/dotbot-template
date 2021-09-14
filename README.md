@@ -6,12 +6,10 @@ Template files using the `jinja2` templating engine.
 ## Prerequisites
 This plugin requires [`dotbot`](https://github.com/anishathalye/dotbot) to be installed.
 
-Also, at runtime this plugin requires the `jinja2` package to be installed. To install jinja2 run:
-`pip install -U Jinja2`
-
 ## Installation
 1. Run `git submodule add https://github.com/ssbanerje/dotbot-template.git`
-2. Pass in the CLI argument `--plugin-dir dotbot-template` when executing the `dotbot` executable.
+2. Run `git submodule update --init --recursive`
+3. Pass in the CLI argument `--plugin-dir dotbot-template` when executing the `dotbot` executable.
 
 
 ## Usage
