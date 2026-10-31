@@ -1,37 +1,89 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
-
 name: CI
+
 on:
   push:
+    branches: [master]
   pull_request:
-    branches:
-      - master
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    name: Run Example
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           path: ./dotbot-template
       - name: Checkout dotbot
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
         with:
           repository: 'anishathalye/dotbot'
           submodules: recursive
           path: ./dotbot
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v7
         with:
-          python-version: 3.x
-      - name: Run dotbot
-        run: './dotbot/bin/dotbot -d ./dotbot-template/example --plugin-dir ./dotbot-template -c ./dotbot-template/example/git.yaml'
-      - name: Check results
-        run: '[[ -f ~/.gitconfig ]] && grep "name = John Doe" ~/.gitconfig && grep "helper = cache" ~/.gitconfig'
-      - name: Run dotbot[params as file]
-        run: './dotbot/bin/dotbot -d ./dotbot-template/example/params_file --plugin-dir ./dotbot-template -c ./dotbot-template/example/params_file/git.yaml'
-      - name: Check results
-        run: '[[ -f ~/.gitconfig2 ]] && grep "smtpserverport = 587" ~/.gitconfig && grep "smtpencryption = tls" ~/.gitconfig'
+          python-version: '3.x'
+      - name: Run unit tests
+        env:
+          PYTHONPATH: ./dotbot/src:./dotbot/lib/pyyaml/lib
+        run: python3 -m unittest discover -s ./dotbot-template/tests -v
+      - name: Verify dry-run leaves filesystem untouched
+        shell: bash
+        run: |
+          rm -f ~/.gitconfig ~/.gitconfig2 ~/.gitconfig_layered
+          ./dotbot/bin/dotbot --dry-run -d ./dotbot-template/example --plugin ./dotbot-template -c ./dotbot-template/example/git.yaml
+          [[ ! -f ~/.gitconfig ]]
+      - name: Run dotbot (inline params example)
+        run: './dotbot/bin/dotbot -d ./dotbot-template/example --plugin ./dotbot-template -c ./dotbot-template/example/git.yaml'
+      - name: Check inline example results
+        shell: bash
+        run: |
+          [[ -f ~/.gitconfig ]]
+          grep -q "name = John Doe" ~/.gitconfig
+          grep -q "user = jd" ~/.gitconfig
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            grep -q "helper = osxkeychain" ~/.gitconfig
+          else
+            grep -q "helper = cache --timeout 36000" ~/.gitconfig
+          fi
+      - name: Run dotbot (external & layered params files)
+        run: './dotbot/bin/dotbot -d ./dotbot-template/example/params_file --plugin ./dotbot-template -c ./dotbot-template/example/params_file/git.yaml'
+      - name: Check external & layered params results
+        shell: bash
+        run: |
+          [[ -f ~/.gitconfig2 ]]
+          grep -q "user = jd" ~/.gitconfig2
+          grep -q "smtpserverport = 587" ~/.gitconfig2
+          grep -q "smtpencryption = tls" ~/.gitconfig2
+          [[ -f ~/.gitconfig_layered ]]
+          grep -q "user = jdoe-override" ~/.gitconfig_layered
+          grep -q "smtpserverport = 465" ~/.gitconfig_layered
+          grep -q "smtpencryption = smtps" ~/.gitconfig_layered
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            grep -q "helper = osxkeychain" ~/.gitconfig_layered
+          else
+            grep -q "helper = cache --timeout 36000" ~/.gitconfig_layered
+          fi
+      - name: Verify idempotent re-run
+        shell: bash
+        run: |
+          out=$(./dotbot/bin/dotbot --no-color -d ./dotbot-template/example --plugin ./dotbot-template -c ./dotbot-template/example/git.yaml)
+          [[ -z "$out" ]]
