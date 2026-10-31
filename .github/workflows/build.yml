@@ -4,6 +4,8 @@ name: CI
 on:
   push:
   pull_request:
+    branches:
+      - master
 
 jobs:
   build:
@@ -29,5 +31,7 @@ jobs:
         run: './dotbot/bin/dotbot -d ./dotbot-template/example --plugin-dir ./dotbot-template -c ./dotbot-template/example/git.yaml'
       - name: Check results
         run: '[[ -f ~/.gitconfig ]] && grep "name = John Doe" ~/.gitconfig && grep "helper = cache" ~/.gitconfig'
-
-...
+      - name: Run dotbot[params as file]
+        run: './dotbot/bin/dotbot -d ./dotbot-template/example/params_file --plugin-dir ./dotbot-template -c ./dotbot-template/example/params_file/git.yaml'
+      - name: Check results
+        run: '[[ -f ~/.gitconfig2 ]] && grep "smtpserverport = 587" ~/.gitconfig && grep "smtpencryption = tls" ~/.gitconfig'

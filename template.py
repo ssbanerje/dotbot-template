@@ -6,6 +6,8 @@ import platform
 import sys
 
 import dotbot
+import json
+import yaml
 
 
 def _inject():
@@ -41,6 +43,13 @@ class Template(dotbot.Plugin):
         return True
 
     def _parse_params(self, params):
+        if isinstance(params, str):
+            if not os.path.isfile(params):
+                err_msg = 'Could not read params file %s' % params
+                self._log.error(err_msg)
+                raise FileNotFoundError(err_msg)
+            params = self._read_params_file(params)
+
         parsed = dict(params)
         parsed['HOME_DIR'] = os.path.expanduser('~')
         if '__UNAME__' in parsed:
@@ -53,6 +62,16 @@ class Template(dotbot.Plugin):
                     )
                 parsed[key] = per_os[uname]
         return parsed
+
+    @staticmethod
+    def _read_params_file(file):
+        _, ext = os.path.splitext(file)
+        with open(file) as f:
+            if ext == '.json':
+                data = json.load(f)
+            else:
+                data = yaml.safe_load(f)
+        return data
 
     def _render_template(self, template_file, params, target):
         cwd = self._context.base_directory()

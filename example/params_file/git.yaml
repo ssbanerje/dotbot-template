@@ -1,0 +1,4 @@
+- template:
+    - ~/.gitconfig2:
+        source_file: ../gitconfig
+        params: ./git_params.yaml
