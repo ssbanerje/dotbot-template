@@ -2,3 +2,10 @@
     - ~/.gitconfig2:
         source_file: ../gitconfig
         params: ./git_params.yaml
+    - ~/.gitconfig_layered:
+        source_file: ../gitconfig
+        params_file:
+          - ./git_params.yaml
+          - ./overrides.json
+        params:
+          SMTP_ENCRYPTION: smtps
