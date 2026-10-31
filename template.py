@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 import platform
+import sys
+
 import dotbot
 
 
 def _inject():
-    # Find submodules
     root_dir = os.path.dirname(os.path.realpath(__file__))
-    path_jinja = os.path.join(root_dir, 'lib/jinja/src/')
-    path_markupsafe = os.path.join(root_dir, 'lib/markupsafe/src')
-    # Update path
-    sys.path.insert(0, path_markupsafe)
-    sys.path.insert(0, path_jinja)
+    sys.path.insert(0, os.path.join(root_dir, 'lib', 'markupsafe', 'src'))
+    sys.path.insert(0, os.path.join(root_dir, 'lib', 'jinja', 'src'))
 
 
 _inject()
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
 
 class Template(dotbot.Plugin):
@@ -28,47 +25,46 @@ class Template(dotbot.Plugin):
         return directive == self._directive
 
     def handle(self, directive, data):
-        if directive == self._directive:
-            for temp in data:
-                target, opts = list(temp.items())[0]
-                self._log.info("Rendering template %s" % target)
-                try:
-                    # Get target path
-                    target = os.path.expanduser(target)
-                    # Get parameters for render
-                    params = self._parse_params(opts['params'])
-                    # Load template and render
-                    self._render_template(opts['source_file'], params, target)
-                except:
-                    self._log.error("Could not render %s" % target)
-                    return False
-            return True
-        else:
+        if directive != self._directive:
             raise ValueError('Cannot handle this directive %s' % directive)
 
+        for temp in data:
+            target, opts = next(iter(temp.items()))
+            self._log.info('Rendering template %s' % target)
+            try:
+                resolved_target = os.path.expanduser(target)
+                params = self._parse_params(opts.get('params', {}))
+                self._render_template(opts['source_file'], params, resolved_target)
+            except Exception as exc:
+                self._log.error('Could not render %s: %s' % (target, exc))
+                return False
+        return True
+
     def _parse_params(self, params):
-        params = self._add_homedir(params)
-        params = self._parse_platform_specific(params)
-        return params
-
-    def _add_homedir(self, params):
-        params['HOME_DIR'] = os.environ['HOME']
-        return params
-
-    def _parse_platform_specific(self, params):
-        if '__UNAME__' in params:
+        parsed = dict(params)
+        parsed['HOME_DIR'] = os.path.expanduser('~')
+        if '__UNAME__' in parsed:
+            uname_map = parsed.pop('__UNAME__')
             uname = platform.system()
-            for k in params['__UNAME__'].keys():
-                params[k] = params['__UNAME__'][k][uname]
-            del params['__UNAME__']
-        return params
+            for key, per_os in uname_map.items():
+                if uname not in per_os:
+                    raise KeyError(
+                        'Unsupported platform %r for template param %r' % (uname, key)
+                    )
+                parsed[key] = per_os[uname]
+        return parsed
 
     def _render_template(self, template_file, params, target):
-        # Load template
         cwd = self._context.base_directory()
-        template_dir = os.path.dirname(os.path.abspath(cwd + '/' + template_file))
-        jinja_env = Environment(loader=FileSystemLoader(template_dir))
-        template = jinja_env.get_template(os.path.basename(template_file))
-        # Template and write output
-        with open(target, 'w') as target_file:
+        template_path = os.path.abspath(os.path.join(cwd, template_file))
+        template_dir = os.path.dirname(template_path)
+        jinja_env = Environment(
+            loader=FileSystemLoader(template_dir),
+            keep_trailing_newline=True,
+        )
+        template = jinja_env.get_template(os.path.basename(template_path))
+        parent_dir = os.path.dirname(os.path.abspath(target))
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        with open(target, 'w', encoding='utf-8') as target_file:
             target_file.write(template.render(params))
