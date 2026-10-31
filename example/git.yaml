@@ -4,7 +4,7 @@
         params:
           NAME: John Doe
           EMAIL: jd@jd.com
-          GITHUB: jd
+          GITHUB_USERNAME: jd
           SIGNING_KEY: DEADBEEF
           SMTP_SERVER: smtp.gmail.com
           SMTP_PORT: 587

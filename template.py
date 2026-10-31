@@ -17,7 +17,7 @@ def _inject():
 
 
 _inject()
-from jinja2 import Environment, FileSystemLoader  # noqa: E402
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, Undefined  # noqa: E402
 
 
 class Template(dotbot.Plugin):
@@ -35,11 +35,18 @@ class Template(dotbot.Plugin):
             self._log.info('Rendering template %s' % target)
             try:
                 resolved_target = os.path.expanduser(target)
+                strict = opts.get('strict', True)
+                if not isinstance(strict, bool):
+                    raise TypeError(
+                        'strict must be a boolean, got %s' % type(strict).__name__
+                    )
                 params = self._resolve_params(
                     params_file=opts.get('params_file'),
                     params=opts.get('params'),
                 )
-                self._render_template(opts['source_file'], params, resolved_target)
+                self._render_template(
+                    opts['source_file'], params, resolved_target, strict=strict
+                )
             except Exception as exc:
                 self._log.error('Could not render %s: %s' % (target, exc))
                 return False
@@ -145,17 +152,22 @@ class Template(dotbot.Plugin):
                 parsed[key] = per_os[uname]
         return parsed
 
-    def _render_template(self, template_file, params, target):
+    def _render_template(self, template_file, params, target, strict=True):
         cwd = self._context.base_directory()
-        template_path = os.path.abspath(os.path.join(cwd, template_file))
+        template_path = os.path.abspath(
+            os.path.join(cwd, os.path.expanduser(template_file))
+        )
         template_dir = os.path.dirname(template_path)
         jinja_env = Environment(
             loader=FileSystemLoader(template_dir),
             keep_trailing_newline=True,
+            undefined=StrictUndefined if strict else Undefined,
         )
         template = jinja_env.get_template(os.path.basename(template_path))
+        rendered = template.render(params)
+
         parent_dir = os.path.dirname(os.path.abspath(target))
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
         with open(target, 'w', encoding='utf-8') as target_file:
-            target_file.write(template.render(params))
+            target_file.write(rendered)
